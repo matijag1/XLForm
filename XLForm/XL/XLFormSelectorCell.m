@@ -28,6 +28,7 @@
 #import "XLFormRowDescriptor.h"
 #import "XLFormSelectorCell.h"
 #import "NSArray+XLFormAdditions.h"
+#import <FirebaseCrashlytics/FirebaseCrashlytics.h>
 
 @interface XLFormSelectorCell() <UIPickerViewDelegate, UIPickerViewDataSource, UIPopoverPresentationControllerDelegate>
 
@@ -124,6 +125,53 @@
     _pickerView = [[UIPickerView alloc] init];
     _pickerView.delegate = self;
     _pickerView.dataSource = self;
+    
+    NSInteger index = [self selectedIndex];
+    NSArray *options = self.rowDescriptor.selectorOptions ?: @[];
+    CGRect bounds = _pickerView.bounds;
+    
+    FIRCrashlytics *crashlytics = [FIRCrashlytics crashlytics];
+    
+    BOOL invalidGeometry =
+    isnan(bounds.origin.x) || isnan(bounds.origin.y) ||
+    isnan(bounds.size.width) || isnan(bounds.size.height) ||
+    CGRectIsEmpty(bounds);
+    
+    // 🔍 Here's where you add the "superview / window" diagnostics:
+    BOOL hasSuperview = (self.superview != nil);
+    BOOL hasWindow = (self.window != nil);
+    UIView *superview = self.superview;
+    UIWindow *window = self.window;
+    
+    NSString *logMsg = [NSString stringWithFormat:
+                        @"[XLFormPicker] tag=%@ idx=%ld count=%lu bounds=%@ invalidGeom=%d hasSuperview=%d hasWindow=%d superviewClass=%@ windowClass=%@",
+                        self.rowDescriptor.tag ?: @"(nil)",
+                        (long)index,
+                        (unsigned long)options.count,
+                        NSStringFromCGRect(bounds),
+                        invalidGeometry,
+                        hasSuperview,
+                        hasWindow,
+                        NSStringFromClass([superview class] ?: [NSObject class]),
+                        NSStringFromClass([window class] ?: [NSObject class])];
+    
+    [crashlytics log:logMsg];
+    [crashlytics setCustomValue:@(hasSuperview) forKey:@"picker_hasSuperview"];
+    [crashlytics setCustomValue:@(hasWindow) forKey:@"picker_hasWindow"];
+    [crashlytics setCustomValue:NSStringFromCGRect(bounds) forKey:@"picker_bounds"];
+    
+    if (invalidGeometry) {
+        NSError *error = [NSError errorWithDomain:@"XLForm.PickerGeometry"
+                                             code:1
+                                         userInfo:@{
+            @"tag": self.rowDescriptor.tag ?: @"nil",
+            @"bounds": NSStringFromCGRect(bounds),
+            @"hasSuperview": @(hasSuperview),
+            @"hasWindow": @(hasWindow)
+        }];
+        [crashlytics recordError:error];
+    }
+    
     [_pickerView selectRow:[self selectedIndex] inComponent:0 animated:NO];
     return _pickerView;
 }
