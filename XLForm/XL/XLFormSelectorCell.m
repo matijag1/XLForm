@@ -172,7 +172,12 @@
         [crashlytics recordError:error];
     }
     
-    [_pickerView selectRow:[self selectedIndex] inComponent:0 animated:NO];
+    // crash fix
+    // [_pickerView selectRow:[self selectedIndex] inComponent:0 animated:NO];
+    if (index >= 0 && index < (NSInteger)options.count) {
+        [_pickerView selectRow:index inComponent:0 animated:NO];
+    }
+    
     return _pickerView;
 }
 
